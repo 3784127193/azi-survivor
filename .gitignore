@@ -1,6 +1,6 @@
 # 依赖
 node_modules/
-package-lock.json
+# package-lock.json 故意提交，保证依赖版本可复现
 
 # 构建产物
 game/dist/

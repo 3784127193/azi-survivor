@@ -243,7 +243,8 @@ const CloudLB = {
       p_wave: Math.max(0, Math.min(20, rec.wave | 0)),
       p_kills: Math.max(0, rec.kills | 0),
       p_mats: Math.max(0, rec.mats | 0),
-      p_survive_sec: Math.max(0, rec.time | 0)
+      p_survive_sec: Math.max(0, rec.time | 0),
+      p_hide: !!rec.hide
     });
     if (error) throw error;
     return data || { ok: false, reason: "服务端无响应" };

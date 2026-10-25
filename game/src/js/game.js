@@ -384,7 +384,7 @@ function uploadRecord(rec) {
   /* 走服务端 submit_record()：越界数据在数据库层直接拒绝 */
   CloudLB.submitRecord({
     name: playerName(), hero: rec.hero, wave: rec.wave,
-    kills: rec.kills, mats: rec.mats, time: rec.time
+    kills: rec.kills, mats: rec.mats, time: rec.time, hide: hideMeOn()
   }).then(r => {
       CloudLB.lastError = "";
       if (r && r.ok === false) {
@@ -1785,6 +1785,29 @@ $("btn-board-back").onclick = () => closeMenuPanel("screen-board");
 $("btn-board-refresh").onclick = () => { SFX.click(); loadBoard(); };
 /* 匿名玩家开关：勾上才把未登录（匿名）成绩一起显示 */
 $("board-show-anon").onchange = () => { SFX.click(); loadBoard(); };
+
+/* ---- 隐藏我的名字：本地记住选择，上报成绩时带给服务端 ---- */
+const HIDE_ME_KEY = "azi_hide_me";
+function hideMeOn() {
+  try { return localStorage.getItem(HIDE_ME_KEY) === "1"; } catch (e) { return false; }
+}
+function setHideMe(on) {
+  try { on ? localStorage.setItem(HIDE_ME_KEY, "1") : localStorage.removeItem(HIDE_ME_KEY); } catch (e) { }
+}
+function syncHideMeBox() {
+  const cb = $("board-hide-me"), row = $("board-hide-row");
+  if (!cb) return;
+  cb.checked = hideMeOn();
+  if (row) row.classList.toggle("on", cb.checked);
+}
+$("board-hide-me").onchange = () => {
+  SFX.click();
+  setHideMe($("board-hide-me").checked);
+  syncHideMeBox();
+  showToast(hideMeOn() ? "已隐藏名字，之后上榜显示「隐藏玩家」" : "已恢复显示名字");
+  loadBoard();
+};
+syncHideMeBox();
 $("btn-board-play").onclick = () => { SFX.click(); closeMenuPanel("screen-board"); toCharSelect(); };
 $("btn-auth-back").onclick = () => closeMenuPanel("screen-auth");
 $("btn-exit").onclick = () => { SFX.click(); showModal("感谢游玩《阿紫幸存者》！<br><small>可以直接关闭浏览器标签页退出游戏</small>"); };
@@ -1890,7 +1913,8 @@ async function loadBoard() {
   if (hint) {
     const ok = isLoggedIn() && !!(CloudLB.user && CloudLB.user.name);
     hint.textContent = (ok ? "已登录可上榜" : "未登录无法上榜") +
-      (anon ? " · 已显示匿名玩家" : " · 匿名玩家已隐藏");
+      (anon ? " · 已显示匿名玩家" : " · 匿名玩家已隐藏") +
+      (hideMeOn() ? " · 我的名字已隐藏" : "");
     hint.className = "lb-hint" + (ok ? " ok" : "");
   }
   try { await loadLB($("board-list"), $("board-status"), 20, "还没有人上榜，打完一局来抢第一！", anon); }
@@ -1902,6 +1926,13 @@ async function loadBoard() {
  *  · 邮箱验证码 / 邮箱密码
  *  · 微信登录 / WorkBuddy 账号登录（OAuth）
  * ============================================================ */
+/* 登录标识归一化：邮箱统一小写并去空格，手机号去空格。
+   否则 user@qq.com / User@qq.com 会被云端当成两个不同账号。 */
+function normIdent(id) {
+  const v = String(id || "").trim();
+  return v.indexOf("@") >= 0 ? v.toLowerCase() : v.replace(/\s+/g, "");
+}
+
 function authStatus(msg, ok) {
   const el = $("auth-status");
   if (!el) return;
@@ -2029,7 +2060,7 @@ function abortCodeSend(btn) {
   btn.textContent = "获取验证码";
 }
 $("btn-rpcode").onclick = async () => {
-  const phone = $("reg-phone").value.trim();
+  const phone = normIdent($("reg-phone").value);
   if (!phoneOk(phone)) { authStatus("请输入正确的 11 位手机号"); return; }
   const btn = $("btn-rpcode");
   const pending = await doSendCode({ phone }, btn, "验证码已发送，请查收短信");
@@ -2044,12 +2075,12 @@ $("btn-rpcode").onclick = async () => {
   authStatus("验证码已发送，请查收短信");
 };
 $("btn-code").onclick = () => {
-  const email = $("reg-email").value.trim();
+  const email = normIdent($("reg-email").value);
   if (!emailOk(email)) { authStatus("请输入正确的邮箱地址"); return; }
   doSendCode({ email }, $("btn-code"));
 };
 $("btn-lpcode").onclick = async () => {
-  const phone = $("login-phone").value.trim();
+  const phone = normIdent($("login-phone").value);
   if (!phoneOk(phone)) { authStatus("请输入正确的 11 位手机号"); return; }
   const btn = $("btn-lpcode");
   const pending = await doSendCode({ phone }, btn, "验证码已发送，请查收短信");
@@ -2071,6 +2102,12 @@ async function doRegister(target, code, uname, p1, p2, label) {
   if (!String(uname || "").trim()) { authStatus("请填写用户名（上榜显示的名字）"); return; }
   if (p1.length < 6) { authStatus("密码至少 6 位"); return; }
   if (p1 !== p2) { authStatus("两次输入的密码不一致"); return; }
+  /* 同一邮箱 / 手机号只允许一个账号：云端判定已存在时不再重复建号 */
+  if (CloudLB.pending && CloudLB.pending.isExistingUser) {
+    authStatus("该" + (target.email ? "邮箱" : "手机号") + "已经注册过，请直接登录（不需要重复注册）");
+    showAuthPane("login", target.email ? "email" : "phone");
+    return;
+  }
   authStatus("正在注册…", true);
   try {
     const u = await CloudLB.verifyCode(target, code, p1);
@@ -2087,14 +2124,14 @@ async function doRegister(target, code, uname, p1, p2, label) {
 }
 $("btn-phone-reg").onclick = () => {
   if (!agreeOk()) return;
-  const phone = $("reg-phone").value.trim();
+  const phone = normIdent($("reg-phone").value);
   if (!phoneOk(phone)) { authStatus("请输入正确的 11 位手机号"); return; }
   doRegister({ phone }, String($("reg-pcode").value || "").trim(), $("reg-puname").value,
     $("reg-ppwd").value, $("reg-ppwd2").value, phone);
 };
 $("btn-reg").onclick = () => {
   if (!agreeOk()) return;
-  const email = $("reg-email").value.trim();
+  const email = normIdent($("reg-email").value);
   if (!emailOk(email)) { authStatus("请输入正确的邮箱地址"); return; }
   doRegister({ email }, String($("reg-code").value || "").trim(), $("reg-uname").value,
     $("reg-pwd").value, $("reg-pwd2").value, email);
@@ -2254,7 +2291,7 @@ syncAgreeBox();
 /* 手机验证码登录（仅限已注册手机号） */
 $("btn-phone-login").onclick = async () => {
   if (!agreeOk()) return;
-  const phone = $("login-phone").value.trim();
+  const phone = normIdent($("login-phone").value);
   if (!phoneOk(phone)) { authStatus("请输入正确的 11 位手机号"); return; }
   const p0 = CloudLB.pending;
   if (!p0 || p0.phone !== phone) { authStatus("请先获取验证码"); return; }
@@ -2276,7 +2313,7 @@ $("btn-phone-login").onclick = async () => {
 /* 邮箱 + 密码登录 */
 $("btn-login").onclick = async () => {
   if (!agreeOk()) return;
-  const email = $("login-email").value.trim();
+  const email = normIdent($("login-email").value);
   const pwd = $("login-pwd").value;
   if (!emailOk(email)) { authStatus("请输入正确的邮箱地址"); return; }
   if (!pwd) { authStatus("请输入密码"); return; }
@@ -2986,7 +3023,6 @@ async function loadAdmDomains() {
 }
 
 /* ---------- 按钮绑定 ---------- */
-$("btn-admin-entry").onclick = () => { SFX.click(); openAdminLogin(); };
 $("btn-adm-back").onclick = () => closeMenuPanel("screen-admin-login");
 $("btn-adm-back2").onclick = () => closeMenuPanel("screen-admin");
 $("btn-adm-close").onclick = () => closeMenuPanel("screen-admin");

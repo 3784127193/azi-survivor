@@ -806,7 +806,7 @@ body.is-mobile .menu-layer .best{bottom:6px; font-size:10px;}
       </nav>
       <nav class="menu-right">
         <button class="m-item" id="btn-news">新消息</button>
-        <div class="m-version">version 1.16.2</div>
+        <div class="m-version">version 1.17.0</div>
       </nav>
       <p class="best" id="best-record"></p>
     </div>
@@ -848,7 +848,6 @@ body.is-mobile .menu-layer .best{bottom:6px; font-size:10px;}
       <div class="set-row"><span>屏幕震动</span><button class="act-btn green" id="set-shake">开</button></div>
       <div class="set-row"><span>伤害数字</span><button class="act-btn green" id="set-dmgtext">开</button></div>
       <button class="btn btn-lg btn-ghost" id="btn-settings-back">返 回</button>
-      <button class="admin-entry" id="btn-admin-entry">管理员入口</button>
     </div>
   </div>
 
@@ -859,6 +858,12 @@ body.is-mobile .menu-layer .best{bottom:6px; font-size:10px;}
       <p class="panel-sub">按最佳波次排序 · 每人只显示最好的一局</p>
       <div id="board-list" class="lb-list"></div>
       <p id="board-status" class="lb-status"></p>
+      <label class="lb-anon-row" id="board-hide-row" for="board-hide-me">
+        <input type="checkbox" id="board-hide-me"/>
+        <span>隐藏我的名字
+          <small>勾选后，你上榜的那条显示为「隐藏玩家」，波次与击杀数据照常展示</small>
+        </span>
+      </label>
       <label class="lb-anon-row" id="board-anon-row" for="board-show-anon">
         <input type="checkbox" id="board-show-anon"/>
         <span>显示匿名玩家
@@ -1398,13 +1403,13 @@ body.is-mobile .menu-layer .best{bottom:6px; font-size:10px;}
 </div>
 
 <!-- 云服务 SDK（同源托管，避免依赖境外 CDN） -->
-<script src="sdk/workbuddy-cloud-sdk.js?v=1.16.2"></script>
-<script src="js/icons.js?v=1.16.2"></script>
-<script src="js/data.js?v=1.16.2"></script>
-<script src="js/audio.js?v=1.16.2"></script>
-<script src="js/cloud.js?v=1.16.2"></script>
-<script src="js/art.js?v=1.16.2"></script>
-<script src="js/net.js?v=1.16.2"></script>
-<script src="js/game.js?v=1.16.2"></script>
+<script src="sdk/workbuddy-cloud-sdk.js?v=1.17.0"></script>
+<script src="js/icons.js?v=1.17.0"></script>
+<script src="js/data.js?v=1.17.0"></script>
+<script src="js/audio.js?v=1.17.0"></script>
+<script src="js/cloud.js?v=1.17.0"></script>
+<script src="js/art.js?v=1.17.0"></script>
+<script src="js/net.js?v=1.17.0"></script>
+<script src="js/game.js?v=1.17.0"></script>
 </body>
 </html>

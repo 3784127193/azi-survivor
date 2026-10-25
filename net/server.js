@@ -31,6 +31,7 @@
 
 const http = require("http");
 const { WebSocketServer } = require("ws");
+const { smtpSend } = require("./mailer");
 
 const PORT = Number(process.env.PORT || 9090);
 const MAX_ROOM = 6;            // 与游戏房间上限一致（2~6 人）
@@ -95,7 +96,121 @@ const send = safeSend;
 
 /* ---------------- 连接处理 ---------------- */
 
+/* ============================================================
+ * 欢迎邮件 —— 注册成功后由前端触发
+ *   · 模板固定，不接受任意主题/正文，降低被当垃圾邮件中转的风险
+ *   · 三重限频：单 IP 3 次/小时、单收件地址 1 次/小时、全局 60 次/小时
+ *   · 收件地址必须是合法邮箱；QQ 邮箱 SMTP（465 隐式 TLS）
+ * ============================================================ */
+const MAIL_USER = process.env.MAIL_USER || "";
+const MAIL_PASS = process.env.MAIL_PASS || "";
+const MAIL_ON = !!(MAIL_USER && MAIL_PASS);
+const MAIL_OK_ORIGIN = (process.env.MAIL_ALLOW_ORIGIN ||
+  "https://YOUR-APP.app.workbuddy.host").split(",").map(x => x.trim());
+
+const mailHits = { ip: new Map(), to: new Map(), global: [] };
+function rateHit(map, key, limit, winMs) {
+  const now = Date.now();
+  const arr = (map.get(key) || []).filter(t => now - t < winMs);
+  if (arr.length >= limit) { map.set(key, arr); return false; }
+  arr.push(now); map.set(key, arr);
+  if (map.size > 5000) map.clear();
+  return true;
+}
+function mailGlobalOk(limit, winMs) {
+  const now = Date.now();
+  mailHits.global = mailHits.global.filter(t => now - t < winMs);
+  if (mailHits.global.length >= limit) return false;
+  mailHits.global.push(now);
+  return true;
+}
+function clientIpOf(req) {
+  const xf = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return xf || (req.socket && req.socket.remoteAddress) || "?";
+}
+function readBody(req, maxBytes) {
+  return new Promise((resolve) => {
+    let n = 0, chunks = [];
+    req.on("data", (c) => {
+      n += c.length;
+      if (n > maxBytes) { resolve(null); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on("end", () => { try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8"))); } catch (e) { resolve(null); } });
+    req.on("error", () => resolve(null));
+  });
+}
+function welcomeText(name) {
+  return [
+    "你好，" + (name || "幸存者") + "：",
+    "",
+    "欢迎加入《阿紫幸存者》。你的账号已经创建成功，现在可以：",
+    "",
+    "  · 打完一局自动上传成绩，参与全球排行榜",
+    "  · 在「选择模式 → 多人模式」和朋友开一个房间一起打",
+    "  · 在设置里调整音效、画面与操作手感",
+    "",
+    "小提示：",
+    "  · 排行榜每人只展示最好的一局；如果你不想露名字，可以在榜单下方勾选「隐藏我的名字」",
+    "  · 未登录也能玩，只是成绩不会上榜",
+    "",
+    "祝你在末日里活得久一点。",
+    "",
+    "—— 阿紫幸存者 开发组",
+    "（本邮件由系统自动发送，请勿直接回复）"
+  ].join("\n");
+}
+
+async function handleWelcome(req, res, origin) {
+  const allowOrigin = MAIL_OK_ORIGIN.indexOf(origin) >= 0 ? origin : "";
+  const cors = {
+    "access-control-allow-origin": allowOrigin,
+    "access-control-allow-methods": "POST, OPTIONS",
+    "access-control-allow-headers": "content-type",
+    "vary": "Origin",
+    "cache-control": "no-store"
+  };
+  if (req.method === "OPTIONS") { res.writeHead(204, cors); res.end(); return; }
+  if (!allowOrigin) { res.writeHead(403, { "content-type": "application/json" }); res.end('{"ok":false,"reason":"origin not allowed"}'); return; }
+  if (req.method !== "POST") { res.writeHead(405, cors); res.end(); return; }
+  if (!MAIL_ON) { res.writeHead(503, Object.assign({ "content-type": "application/json" }, cors)); res.end('{"ok":false,"reason":"mail not configured"}'); return; }
+
+  const body = await readBody(req, 2048);
+  const to = String((body && body.email) || "").trim().toLowerCase();
+  const name = String((body && body.name) || "").slice(0, 12);
+  if (!/^[a-z0-9._%+-]{1,64}@[a-z0-9.-]{2,64}\.[a-z]{2,12}$/.test(to)) {
+    res.writeHead(400, Object.assign({ "content-type": "application/json" }, cors));
+    res.end('{"ok":false,"reason":"bad email"}');
+    return;
+  }
+  const ip = clientIpOf(req);
+  if (!rateHit(mailHits.ip, ip, 3, 3600e3) || !rateHit(mailHits.to, to, 1, 3600e3) || !mailGlobalOk(60, 3600e3)) {
+    res.writeHead(429, Object.assign({ "content-type": "application/json" }, cors));
+    res.end('{"ok":false,"reason":"rate limited"}');
+    return;
+  }
+
+  try {
+    await smtpSend({
+      user: MAIL_USER, pass: MAIL_PASS, fromName: "阿紫幸存者",
+      to, subject: "欢迎加入《阿紫幸存者》", text: welcomeText(name)
+    });
+    counters.welcomeMailed = (counters.welcomeMailed || 0) + 1;
+    log("welcome mail ->", to.replace(/^(.).*(@.*)$/, "$1***$2"));
+    res.writeHead(200, Object.assign({ "content-type": "application/json" }, cors));
+    res.end('{"ok":true}');
+  } catch (e) {
+    log("welcome mail failed:", e.message);
+    res.writeHead(502, Object.assign({ "content-type": "application/json" }, cors));
+    res.end(JSON.stringify({ ok: false, reason: "send failed" }));
+  }
+}
+
 const server = http.createServer((req, res) => {
+  if (req.url.indexOf("/api/welcome") === 0) {
+    handleWelcome(req, res, String(req.headers.origin || ""));
+    return;
+  }
   if (req.url === "/health") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true, rooms: rooms.size, conns: connCount, uptime: process.uptime() }));

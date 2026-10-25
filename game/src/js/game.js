@@ -1933,6 +1933,19 @@ function normIdent(id) {
   return v.indexOf("@") >= 0 ? v.toLowerCase() : v.replace(/\s+/g, "");
 }
 
+/* 注册欢迎邮件：由中继用官方 QQ 邮箱发出（失败静默，不打扰玩家） */
+function sendWelcomeMail(email, name) {
+  try {
+    const base = String((Net && Net.cfg && Net.cfg.fallback) || "").replace(/^wss:/, "https:");
+    if (!base || !email) return;
+    fetch(base + "/api/welcome", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: String(email).toLowerCase(), name: String(name || "").slice(0, 12) })
+    }).catch(() => { });
+  } catch (e) { }
+}
+
 function authStatus(msg, ok) {
   const el = $("auth-status");
   if (!el) return;
@@ -2112,6 +2125,9 @@ async function doRegister(target, code, uname, p1, p2, label) {
   try {
     const u = await CloudLB.verifyCode(target, code, p1);
     setPlayerName(uname);                       // 用注册时填的用户名上榜
+    /* 注册成功 → 让中继用官方 QQ 邮箱发一封欢迎邮件。
+       走的是固定模板 + 限频接口，失败完全不影响注册流程。 */
+    if (target.email) sendWelcomeMail(target.email, uname);
     authStatus("注册成功，已登录：" + (u && u.name ? u.name : label), true);
     applyAutoLogin($("rp-auto") ? $("rp-auto").checked : true);
     refreshAccountItem();

@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>阿紫幸存者 · 管理后台</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e1014; --panel:#161a21; --panel2:#1c222b; --line:#2a3240;
+  --txt:#e6e9ef; --dim:#8b95a6; --gold:#f2b93d; --red:#ff5d5d; --grn:#2fd08a; --blu:#5aa9ff;
+}
+body{background:var(--bg);color:var(--txt);font:14px/1.6 "Microsoft YaHei",system-ui,sans-serif;
+  min-height:100vh;-webkit-font-smoothing:antialiased}
+a{color:var(--gold);text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:0;outline:0}
+input,select{font-family:inherit;font-size:14px;background:#0b0e13;color:var(--txt);
+  border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%}
+input:focus,select:focus{border-color:var(--gold)}
+.hidden{display:none !important}
+
+/* 登录 */
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+#login .box{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--line);
+  border-radius:16px;padding:28px 24px}
+#login h1{font-size:19px;letter-spacing:2px;margin-bottom:4px}
+#login p.sub{color:var(--dim);font-size:12px;margin-bottom:20px}
+#login label{display:block;font-size:12px;color:var(--dim);margin:12px 0 5px}
+.btn{background:var(--gold);color:#1a1200;font-weight:800;border-radius:9px;padding:11px 16px;
+  font-size:14px;letter-spacing:1px;width:100%;transition:.15s}
+.btn:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--dim);border:1px solid var(--line);font-weight:700}
+.btn.ghost:hover{color:var(--txt);border-color:var(--dim)}
+.btn.sm{width:auto;padding:5px 11px;font-size:12px;border-radius:7px;letter-spacing:0}
+.btn.red{background:#3a1a1a;color:#ff8a8a;border:1px solid #5a2626}
+.btn.grn{background:#12301f;color:#6ee7b0;border:1px solid #1f5136}
+.msg{margin-top:14px;font-size:12.5px;color:var(--red);min-height:18px;text-align:center}
+
+/* 主界面 */
+#app{display:none;min-height:100vh;flex-direction:column}
+#app.on{display:flex}
+header{display:flex;align-items:center;gap:14px;padding:12px 18px;background:var(--panel);
+  border-bottom:1px solid var(--line);flex-wrap:wrap}
+header .brand{font-weight:800;letter-spacing:1.5px;font-size:15px}
+header .brand span{color:var(--gold)}
+header .who{color:var(--dim);font-size:12px;margin-left:auto}
+nav{display:flex;gap:6px;padding:10px 18px;background:var(--panel);border-bottom:1px solid var(--line);
+  overflow-x:auto}
+nav button{background:transparent;color:var(--dim);padding:8px 14px;border-radius:9px;
+  font-size:13px;font-weight:700;white-space:nowrap}
+nav button.on{background:var(--panel2);color:var(--gold);box-shadow:inset 0 0 0 1px var(--line)}
+nav button:hover{color:var(--txt)}
+main{padding:18px;flex:1}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:16px}
+.card h3{font-size:14px;margin-bottom:12px;letter-spacing:.5px}
+.card h3 small{color:var(--dim);font-weight:400;font-size:12px;margin-left:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px}
+.stat b{display:block;font-size:24px;color:var(--gold);line-height:1.2}
+.stat span{font-size:12px;color:var(--dim)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--dim);font-weight:700;font-size:11.5px;letter-spacing:.4px;position:sticky;top:0;background:var(--panel)}
+tbody tr:hover{background:var(--panel2)}
+.wrap{max-height:58vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.row input{flex:1;min-width:180px}
+.tag{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;font-weight:700}
+.tag.on{background:#3a1a1a;color:#ff9a9a}
+.tag.off{background:#12301f;color:#6ee7b0}
+.empty{padding:26px;text-align:center;color:var(--dim);font-size:13px}
+.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  background:#232b36;color:var(--txt);padding:10px 18px;border-radius:10px;font-size:13px;
+  border:1px solid var(--line);opacity:0;transition:.25s;pointer-events:none;z-index:50}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{border-color:#5a2626;color:#ffb3b3}
+</style>
+</head>
+<body>
+
+<!-- ================= 登录 ================= -->
+<div id="login">
+  <div class="box">
+    <h1>阿紫幸存者 · 管理后台</h1>
+    <p class="sub">请使用管理员账号登录</p>
+    <label>用户名</label>
+    <input id="u" autocomplete="username" placeholder="管理员用户名"/>
+    <label>密码</label>
+    <input id="p" type="password" autocomplete="current-password" placeholder="密码"/>
+    <div style="height:18px"></div>
+    <button class="btn" id="btnLogin">登 录</button>
+    <p class="msg" id="loginMsg"></p>
+  </div>
+</div>
+
+<!-- ================= 主界面 ================= -->
+<div id="app">
+  <header>
+    <div class="brand">阿紫幸存者 · <span>管理后台</span></div>
+    <div class="who">当前管理员：<b id="whoami">-</b></div>
+    <button class="btn ghost sm" id="btnLogout">退出登录</button>
+  </header>
+
+  <nav>
+    <button data-tab="overview" class="on">概览</button>
+    <button data-tab="records">成绩记录</button>
+    <button data-tab="users">用户封禁</button>
+    <button data-tab="devices">设备指纹</button>
+    <button data-tab="ips">IP 封禁</button>
+    <button data-tab="domains">邮箱域名</button>
+    <button data-tab="flags">作弊标记</button>
+    <button data-tab="passwd">修改密码</button>
+  </nav>
+
+  <main>
+    <div id="pane-overview" class="pane">
+      <div class="card"><h3>数据概览</h3><div class="grid" id="ovGrid"></div></div>
+      <div class="card"><h3>快捷说明<small>所有操作都会写入服务端并即时生效</small></h3>
+        <p style="color:var(--dim);font-size:12.5px;line-height:1.9">
+          · <b>用户封禁</b>：按账号（owner_id）封禁，封禁后该账号成绩不再上榜<br>
+          · <b>设备指纹</b>：按 device_id 封禁，换账号也绕不过去<br>
+          · <b>IP 封禁</b>：按访问 IP 封禁，可在「最近出现的 IP」里直接点封<br>
+          · <b>邮箱域名</b>：拦截临时邮箱域名注册
+        </p>
+      </div>
+    </div>
+
+    <div id="pane-records" class="pane hidden">
+      <div class="card">
+        <h3>成绩记录<small>最近 200 条</small></h3>
+        <div class="row">
+          <input id="recFilter" placeholder="按昵称 / 账号 ID 过滤"/>
+          <button class="btn ghost sm" id="recReload">刷新</button>
+        </div>
+        <div class="wrap"><table id="recTable"></table></div>
+      </div>
+    </div>
+
+    <div id="pane-users" class="pane hidden">
+      <div class="card">
+        <h3>用户封禁<small>按账号封禁，来自反作弊标记与手动操作</small></h3>
+        <div class="row">
+          <input id="userInput" placeholder="输入账号 ID（owner_id，形如 uuid）"/>
+          <button class="btn red sm" id="userBan">封 禁</button>
+          <button class="btn grn sm" id="userUnban">解 封</button>
+          <button class="btn ghost sm" id="userReload">刷新列表</button>
+        </div>
+        <div class="wrap"><table id="userTable"></table></div>
+      </div>
+    </div>
+
+    <div id="pane-devices" class="pane hidden">
+      <div class="card">
+        <h3>设备指纹封禁<small>按 device_id 封禁</small></h3>
+        <div class="row">
+          <input id="devInput" placeholder="输入设备 ID（形如 d-xxxx）"/>
+          <button class="btn red sm" id="devBan">封 禁</button>
+          <button class="btn ghost sm" id="devReload">刷新列表</button>
+        </div>
+        <div class="wrap"><table id="devTable"></table></div>
+      </div>
+    </div>
+
+    <div id="pane-ips" class="pane hidden">
+      <div class="card">
+        <h3>IP 封禁<small>按访问 IP 封禁</small></h3>
+        <div class="row">
+          <input id="ipInput" placeholder="输入 IP，例如 1.2.3.4"/>
+          <button class="btn red sm" id="ipBan">封 禁</button>
+          <button class="btn ghost sm" id="ipReload">刷新列表</button>
+        </div>
+        <div class="wrap"><table id="ipTable"></table></div>
+        <h3 style="margin-top:18px">最近出现的 IP<small>来自反作弊上报，可直接封</small></h3>
+        <div class="wrap"><table id="seenTable"></table></div>
+      </div>
+    </div>
+
+    <div id="pane-domains" class="pane hidden">
+      <div class="card">
+        <h3>邮箱域名黑名单<small>拦截临时邮箱注册</small></h3>
+        <div class="row">
+          <input id="domInput" placeholder="输入域名，例如 mailinator.com"/>
+          <button class="btn red sm" id="domAdd">添 加</button>
+          <button class="btn ghost sm" id="domReload">刷新列表</button>
+        </div>
+        <div class="wrap"><table id="domTable"></table></div>
+      </div>
+    </div>
+
+    <div id="pane-flags" class="pane hidden">
+      <div class="card">
+        <h3>作弊标记<small>自动上报 + 手动封禁记录</small></h3>
+        <div class="row"><button class="btn ghost sm" id="flagReload">刷新</button></div>
+        <div class="wrap"><table id="flagTable"></table></div>
+      </div>
+    </div>
+
+    <div id="pane-passwd" class="pane hidden">
+      <div class="card" style="max-width:420px">
+        <h3>修改管理员密码</h3>
+        <label style="font-size:12px;color:var(--dim)">新密码（至少 8 位）</label>
+        <input id="np1" type="password" placeholder="新密码"/>
+        <div style="height:10px"></div>
+        <label style="font-size:12px;color:var(--dim)">再输一次</label>
+        <input id="np2" type="password" placeholder="确认新密码"/>
+        <div style="height:16px"></div>
+        <button class="btn" id="npSave">保 存</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+ * 管理后台 —— 直连云数据库 RPC（同源代理，无跨域）
+ * 接口前缀：/.cloud/database/rest/rpc/<函数名>
+ * 鉴权头：x-wb-webapp-access-key（可公开的 publishable key）
+ * 管理会话：admin_login 返回的 token，存 sessionStorage
+ * ============================================================ */
+const ACCESS_KEY = "wbpk_REPLACE_WITH_YOUR_OWN_PUBLISHABLE_KEY_000000000000000";
+const API = "/.cloud/database/rest/rpc/";
+const TKEY = "azi_admin_token";
+const UKEY = "azi_admin_user";
+
+const $ = id => document.getElementById(id);
+let TOKEN = "";
+let CURRENT = "overview";
+const cache = {};
+
+function toast(msg, isErr) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.className = "toast on" + (isErr ? " err" : "");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => { t.className = "toast" + (isErr ? " err" : ""); }, 2200);
+}
+
+async function rpc(fn, params) {
+  const r = await fetch(API + fn, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-wb-webapp-access-key": ACCESS_KEY },
+    body: JSON.stringify(params || {})
+  });
+  let j = null;
+  try { j = await r.json(); } catch (e) { throw new Error("服务器返回异常（HTTP " + r.status + "）"); }
+  if (!r.ok) throw new Error((j && (j.error_description || j.error || j.reason)) || ("HTTP " + r.status));
+  return j;
+}
+
+function needLogin(reason) {
+  TOKEN = "";
+  try { sessionStorage.removeItem(TKEY); } catch (e) { }
+  $("app").classList.remove("on");
+  $("login").style.display = "flex";
+  $("loginMsg").textContent = reason || "登录已失效，请重新登录";
+}
+
+/* 统一调用：自动带 token，失效自动回登录页 */
+async function call(fn, params) {
+  const body = Object.assign({ p_token: TOKEN }, params || {});
+  const j = await rpc(fn, body);
+  if (j && j.ok === false && /登录已失效/.test(j.reason || "")) { needLogin(); throw new Error("登录已失效"); }
+  return j;
+}
+
+/* ---------------- 表格渲染（按真实字段自适应） ---------------- */
+const LABEL = {
+  id: "ID", player_name: "昵称", hero: "角色", wave: "波次", kills: "击杀", mats: "材料",
+  survive_sec: "存活秒", owner_id: "账号 ID", created_at: "时间", banned: "状态",
+  reason: "原因", detail: "详情", ip: "IP", device_id: "设备 ID", note: "备注",
+  domain: "域名", hits: "次数", last_seen: "最近出现"
+};
+const HIDE = { };
+
+function fmt(v, k) {
+  if (v === null || v === undefined) return "-";
+  if (k === "created_at" || k === "last_seen") {
+    const d = new Date(v);
+    if (isNaN(d)) return String(v);
+    const p = n => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  if (typeof v === "boolean") return v ? '<span class="tag on">已封</span>' : '<span class="tag off">正常</span>';
+  if (k === "owner_id" || k === "device_id" || k === "ip") return '<span class="mono">' + esc(String(v)) + '</span>';
+  return esc(String(v));
+}
+function esc(s) {
+  return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+/* rows: 数组；actions: (row)=>html */
+function renderTable(el, rows, actions) {
+  if (!rows || !rows.length) { el.innerHTML = '<tbody><tr><td class="empty">暂无数据</td></tr></tbody>'; return; }
+  const cols = Object.keys(rows[0]).filter(k => !HIDE[k]);
+  let h = "<thead><tr>" + cols.map(c => "<th>" + (LABEL[c] || c) + "</th>").join("") +
+    (actions ? "<th>操作</th>" : "") + "</tr></thead><tbody>";
+  for (const r of rows) {
+    h += "<tr>" + cols.map(c => "<td>" + fmt(r[c], c) + "</td>").join("") +
+      (actions ? "<td>" + actions(r) + "</td>" : "") + "</tr>";
+  }
+  el.innerHTML = h + "</tbody>";
+}
+
+/* ---------------- 登录 ---------------- */
+async function doLogin() {
+  const u = $("u").value.trim(), p = $("p").value;
+  if (!u || !p) { $("loginMsg").textContent = "请填写用户名和密码"; return; }
+  $("btnLogin").disabled = true;
+  $("loginMsg").textContent = "正在登录…";
+  try {
+    const j = await rpc("admin_login", { p_user: u, p_pass: p });
+    if (!j || !j.ok) { $("loginMsg").textContent = (j && j.reason) || "登录失败"; return; }
+    TOKEN = j.token || "";
+    if (!TOKEN) { $("loginMsg").textContent = "服务端未返回会话令牌"; return; }
+    try { sessionStorage.setItem(TKEY, TOKEN); sessionStorage.setItem(UKEY, j.user || u); } catch (e) { }
+    enterApp(j.user || u);
+  } catch (e) {
+    $("loginMsg").textContent = e.message || "网络异常";
+  } finally {
+    $("btnLogin").disabled = false;
+  }
+}
+$("btnLogin").onclick = doLogin;
+$("p").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+$("u").addEventListener("keydown", e => { if (e.key === "Enter") $("p").focus(); });
+
+function enterApp(user) {
+  $("whoami").textContent = user || "-";
+  $("login").style.display = "none";
+  $("app").classList.add("on");
+  $("loginMsg").textContent = "";
+  switchTab("overview");
+}
+
+$("btnLogout").onclick = async () => {
+  try { await call("admin_logout"); } catch (e) { }
+  needLogin("已退出登录");
+};
+
+/* ---------------- 标签切换 ---------------- */
+const LOADERS = {
+  overview: loadOverview, records: loadRecords, users: loadFlags, devices: loadDevices,
+  ips: loadIPs, domains: loadDomains, flags: loadFlags, passwd: () => { }
+};
+function switchTab(name) {
+  CURRENT = name;
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
+  document.querySelectorAll(".pane").forEach(p => p.classList.add("hidden"));
+  const pane = $("pane-" + name);
+  if (pane) pane.classList.remove("hidden");
+  const fn = LOADERS[name];
+  if (fn) fn().catch(e => toast(e.message, true));
+}
+document.querySelectorAll("nav button").forEach(b => {
+  b.onclick = () => switchTab(b.dataset.tab);
+});
+
+/* ---------------- 各模块 ---------------- */
+async function loadOverview() {
+  const j = await call("admin_overview");
+  const items = [
+    ["成绩记录", j.records], ["账号档案", j.profiles], ["设备数", j.devices],
+    ["作弊标记", j.flags], ["封禁用户", j.banned], ["封禁设备", j.devbans],
+    ["黑名单域名", j.domains], ["在线会话", j.sessions]
+  ];
+  $("ovGrid").innerHTML = items.map(([k, v]) =>
+    '<div class="stat"><b>' + (v === null || v === undefined ? "-" : v) + "</b><span>" + k + "</span></div>").join("");
+}
+
+async function loadRecords() {
+  const j = await call("admin_records", { p_limit: 200 });
+  cache.records = j.rows || [];
+  renderRecords();
+}
+function renderRecords() {
+  const q = ($("recFilter").value || "").trim().toLowerCase();
+  let rows = cache.records || [];
+  if (q) rows = rows.filter(r => (String(r.player_name || "") + " " + String(r.owner_id || "")).toLowerCase().includes(q));
+  renderTable($("recTable"), rows, r =>
+    '<button class="btn red sm" data-del="' + r.id + '">删除</button>');
+  $("recTable").querySelectorAll("[data-del]").forEach(b => {
+    b.onclick = async () => {
+      if (!confirm("确认删除这条成绩？不可恢复。")) return;
+      try {
+        await call("admin_del_record", { p_id: Number(b.dataset.del) });
+        toast("已删除");
+        await loadRecords();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+}
+$("recReload").onclick = () => loadRecords().catch(e => toast(e.message, true));
+$("recFilter").oninput = renderRecords;
+
+async function loadFlags() {
+  const j = await call("admin_flags");
+  const rows = j.rows || [];
+  cache.flags = rows;
+  const el = $("flagTable");
+  renderTable(el, rows);
+  const el2 = $("userTable");
+  if (el2) {
+    renderTable(el2, rows.filter(r => r.owner_id), r => {
+      const on = !!r.banned;
+      return on
+        ? '<button class="btn grn sm" data-ub="' + esc(String(r.owner_id)) + '">解封</button>'
+        : '<button class="btn red sm" data-ub="' + esc(String(r.owner_id)) + '">封禁</button>';
+    });
+    el2.querySelectorAll("[data-ub]").forEach(b => {
+      b.onclick = async () => {
+        const owner = b.dataset.ub;
+        const isBanned = /解封/.test(b.textContent);
+        try {
+          await call("admin_ban", { p_owner: owner, p_banned: isBanned ? false : true });
+          toast(isBanned ? "已解封" : "已封禁");
+          await loadFlags();
+        } catch (e) { toast(e.message, true); }
+      };
+    });
+  }
+}
+$("flagReload").onclick = () => loadFlags().catch(e => toast(e.message, true));
+$("userReload").onclick = () => loadFlags().catch(e => toast(e.message, true));
+$("userBan").onclick = () => banUser(true);
+$("userUnban").onclick = () => banUser(false);
+async function banUser(b) {
+  const owner = $("userInput").value.trim();
+  if (!owner) { toast("请先填账号 ID", true); return; }
+  try {
+    const j = await call("admin_ban", { p_owner: owner, p_banned: !!b });
+    if (!j.ok) { toast(j.reason || "操作失败", true); return; }
+    toast(b ? "已封禁" : "已解封");
+    $("userInput").value = "";
+    await loadFlags();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function loadDevices() {
+  const j = await call("admin_banned_devices");
+  const rows = j.rows || [];
+  renderTable($("devTable"), rows, r =>
+    '<button class="btn grn sm" data-ubd="' + esc(String(r.device_id)) + '">解封</button>');
+  $("devTable").querySelectorAll("[data-ubd]").forEach(b => {
+    b.onclick = async () => {
+      try {
+        await call("admin_ban_device", { p_device: b.dataset.ubd, p_banned: false });
+        toast("已解封");
+        await loadDevices();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+}
+$("devReload").onclick = () => loadDevices().catch(e => toast(e.message, true));
+$("devBan").onclick = async () => {
+  const d = $("devInput").value.trim();
+  if (!d) { toast("请先填设备 ID", true); return; }
+  try {
+    const j = await call("admin_ban_device", { p_device: d, p_banned: true });
+    if (!j.ok) { toast(j.reason || "操作失败", true); return; }
+    toast("已封禁");
+    $("devInput").value = "";
+    await loadDevices();
+  } catch (e) { toast(e.message, true); }
+};
+
+async function loadIPs() {
+  const [a, b] = await Promise.all([call("admin_banned_ips"), call("admin_seen_ips", { p_limit: 100 })]);
+  renderTable($("ipTable"), a.rows || [], r =>
+    '<button class="btn grn sm" data-ubi="' + esc(String(r.ip)) + '">解封</button>');
+  $("ipTable").querySelectorAll("[data-ubi]").forEach(el => {
+    el.onclick = async () => {
+      try {
+        await call("admin_ban_ip", { p_ip: el.dataset.ubi, p_banned: false });
+        toast("已解封");
+        await loadIPs();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+  renderTable($("seenTable"), b.rows || [], r =>
+    '<button class="btn red sm" data-bi="' + esc(String(r.ip)) + '">封禁</button>');
+  $("seenTable").querySelectorAll("[data-bi]").forEach(el => {
+    el.onclick = async () => {
+      try {
+        await call("admin_ban_ip", { p_ip: el.dataset.bi, p_banned: true });
+        toast("已封禁");
+        await loadIPs();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+}
+$("ipReload").onclick = () => loadIPs().catch(e => toast(e.message, true));
+$("ipBan").onclick = async () => {
+  const ip = $("ipInput").value.trim();
+  if (!ip) { toast("请先填 IP", true); return; }
+  try {
+    const j = await call("admin_ban_ip", { p_ip: ip, p_banned: true });
+    if (!j.ok) { toast(j.reason || "操作失败", true); return; }
+    toast("已封禁");
+    $("ipInput").value = "";
+    await loadIPs();
+  } catch (e) { toast(e.message, true); }
+};
+
+async function loadDomains() {
+  const j = await call("admin_domains");
+  renderTable($("domTable"), j.rows || [], r =>
+    '<button class="btn grn sm" data-dd="' + esc(String(r.domain)) + '">移除</button>');
+  $("domTable").querySelectorAll("[data-dd]").forEach(b => {
+    b.onclick = async () => {
+      try {
+        await call("admin_del_domain", { p_domain: b.dataset.dd });
+        toast("已移除");
+        await loadDomains();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+}
+$("domReload").onclick = () => loadDomains().catch(e => toast(e.message, true));
+$("domAdd").onclick = async () => {
+  const d = $("domInput").value.trim().toLowerCase();
+  if (!d) { toast("请先填域名", true); return; }
+  try {
+    const j = await call("admin_add_domain", { p_domain: d });
+    if (!j.ok) { toast(j.reason || "操作失败", true); return; }
+    toast("已添加");
+    $("domInput").value = "";
+    await loadDomains();
+  } catch (e) { toast(e.message, true); }
+};
+
+$("npSave").onclick = async () => {
+  const a = $("np1").value, b = $("np2").value;
+  if (a.length < 8) { toast("新密码至少 8 位", true); return; }
+  if (a !== b) { toast("两次输入不一致", true); return; }
+  try {
+    const j = await call("admin_set_pass", { p_new: a });
+    if (!j.ok) { toast(j.reason || "保存失败", true); return; }
+    toast("密码已更新");
+    $("np1").value = ""; $("np2").value = "";
+  } catch (e) { toast(e.message, true); }
+};
+
+/* ---------------- 启动：恢复会话 ---------------- */
+(async () => {
+  try {
+    const t = sessionStorage.getItem(TKEY);
+    const u = sessionStorage.getItem(UKEY);
+    if (t) {
+      TOKEN = t;
+      const j = await call("admin_overview");
+      if (j && j.ok) { enterApp(j.user || u || "管理员"); return; }
+    }
+  } catch (e) { }
+  needLogin("");
+})();
+</script>
+</body>
+</html>

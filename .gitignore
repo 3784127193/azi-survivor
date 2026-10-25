@@ -1,0 +1,24 @@
+# 依赖
+node_modules/
+package-lock.json
+
+# 构建产物
+game/dist/
+
+# 本地备份 / 数据库导出 / 密钥
+_backup/
+_opensource/
+*.pem
+*.key
+*.log
+*.tar.gz
+*.zip
+
+# 测试截图
+net/shots/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

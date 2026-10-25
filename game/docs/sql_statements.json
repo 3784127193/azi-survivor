@@ -1,0 +1,298 @@
+{
+ "admin_user": "000000000",
+ "admin_pass": "qjOMrTIbZYzE",
+ "statements": [
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION _uid() RETURNS TEXT\nLANGUAGE sql SECURITY DEFINER AS $fn$\n  SELECT CASE WHEN u IS NULL OR u = 'anon' OR u = '' THEN NULL ELSE u END\n  FROM (SELECT auth.uid() AS u) s\n$fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION _client_ip() RETURNS TEXT\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE h JSON; v TEXT;\nBEGIN\n  BEGIN h := current_setting('request.headers', true)::json;\n  EXCEPTION WHEN others THEN RETURN NULL; END;\n  IF h IS NULL THEN RETURN NULL; END IF;\n  v := coalesce(h->>'x-real-ip', split_part(coalesce(h->>'x-forwarded-for',''), ',', 1));\n  v := trim(both from coalesce(v,''));\n  IF v = '' THEN RETURN NULL; END IF;\n  RETURN left(v, 45);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE SEQUENCE IF NOT EXISTS leaderboard_id_seq"
+  ],
+  [
+   "migrate",
+   "CREATE TABLE IF NOT EXISTS leaderboard (\n  id          BIGINT NOT NULL DEFAULT nextval('leaderboard_id_seq'),\n  player_name TEXT    NOT NULL,\n  hero        TEXT,\n  wave        INTEGER NOT NULL,\n  kills       INTEGER NOT NULL,\n  mats        INTEGER NOT NULL,\n  survive_sec INTEGER NOT NULL,\n  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),\n  owner_id    TEXT,\n  PRIMARY KEY (id)\n)"
+  ],
+  [
+   "migrate",
+   "CREATE TABLE IF NOT EXISTS account_profile (\n  owner_id      TEXT PRIMARY KEY,\n  display_name  TEXT,\n  contact_email TEXT,\n  updated_at    TIMESTAMPTZ DEFAULT now()\n)"
+  ],
+  [
+   "migrate",
+   "CREATE TABLE IF NOT EXISTS account_devices (\n  owner_id   TEXT NOT NULL,\n  device_id  TEXT NOT NULL,\n  first_seen TIMESTAMPTZ DEFAULT now(),\n  last_seen  TIMESTAMPTZ DEFAULT now(),\n  PRIMARY KEY (owner_id, device_id)\n)"
+  ],
+  [
+   "migrate",
+   "CREATE TABLE IF NOT EXISTS banned_email_domains (\n  domain TEXT PRIMARY KEY,\n  note   TEXT\n)"
+  ],
+  [
+   "migrate",
+   "CREATE TABLE IF NOT EXISTS cheat_flags (\n  owner_id   TEXT,\n  reason     TEXT NOT NULL,\n  detail     TEXT,\n  wave       INTEGER DEFAULT 0,\n  created_at TIMESTAMPTZ DEFAULT now(),\n  banned     BOOLEAN DEFAULT false,\n  ip         TEXT,\n  device_id  TEXT\n)"
+  ],
+  [
+   "migrate",
+   "CREATE TABLE IF NOT EXISTS banned_devices (\n  device_id  TEXT PRIMARY KEY,\n  note       TEXT,\n  created_at TIMESTAMPTZ DEFAULT now()\n)"
+  ],
+  [
+   "migrate",
+   "CREATE TABLE IF NOT EXISTS admin_accounts (\n  username   TEXT PRIMARY KEY,\n  pass_hash  TEXT NOT NULL,\n  created_at TIMESTAMPTZ DEFAULT now(),\n  last_login TIMESTAMPTZ\n)"
+  ],
+  [
+   "migrate",
+   "CREATE TABLE IF NOT EXISTS admin_sessions (\n  token      TEXT PRIMARY KEY,\n  username   TEXT NOT NULL,\n  created_at TIMESTAMPTZ DEFAULT now(),\n  expires_at TIMESTAMPTZ NOT NULL\n)"
+  ],
+  [
+   "migrate",
+   "CREATE TABLE IF NOT EXISTS admin_fails (\n  id         BIGSERIAL PRIMARY KEY,\n  username   TEXT,\n  created_at TIMESTAMPTZ DEFAULT now()\n)"
+  ],
+  [
+   "migrate",
+   "CREATE TABLE IF NOT EXISTS rooms (\n  id          BIGSERIAL PRIMARY KEY,\n  code        TEXT UNIQUE NOT NULL,\n  host_key    TEXT NOT NULL,\n  max_players INTEGER NOT NULL DEFAULT 4,\n  status      TEXT NOT NULL DEFAULT 'waiting',   \n  created_at  TIMESTAMPTZ DEFAULT now(),\n  updated_at  TIMESTAMPTZ DEFAULT now()\n)"
+  ],
+  [
+   "migrate",
+   "CREATE TABLE IF NOT EXISTS room_members (\n  room_id     BIGINT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,\n  member_key  TEXT NOT NULL,\n  name        TEXT,\n  ready       BOOLEAN DEFAULT false,\n  wave        INTEGER DEFAULT 0,\n  kills       INTEGER DEFAULT 0,\n  mats        INTEGER DEFAULT 0,\n  survive_sec INTEGER DEFAULT 0,\n  done        BOOLEAN DEFAULT false,\n  joined_at   TIMESTAMPTZ DEFAULT now(),\n  PRIMARY KEY (room_id, member_key)\n)"
+  ],
+  [
+   "migrate",
+   "ALTER TABLE leaderboard          ENABLE ROW LEVEL SECURITY"
+  ],
+  [
+   "migrate",
+   "ALTER TABLE account_profile      ENABLE ROW LEVEL SECURITY"
+  ],
+  [
+   "migrate",
+   "ALTER TABLE account_devices      ENABLE ROW LEVEL SECURITY"
+  ],
+  [
+   "migrate",
+   "ALTER TABLE banned_email_domains ENABLE ROW LEVEL SECURITY"
+  ],
+  [
+   "migrate",
+   "ALTER TABLE cheat_flags          ENABLE ROW LEVEL SECURITY"
+  ],
+  [
+   "migrate",
+   "ALTER TABLE banned_devices       ENABLE ROW LEVEL SECURITY"
+  ],
+  [
+   "migrate",
+   "ALTER TABLE admin_accounts       ENABLE ROW LEVEL SECURITY"
+  ],
+  [
+   "migrate",
+   "ALTER TABLE admin_sessions       ENABLE ROW LEVEL SECURITY"
+  ],
+  [
+   "migrate",
+   "ALTER TABLE admin_fails          ENABLE ROW LEVEL SECURITY"
+  ],
+  [
+   "migrate",
+   "ALTER TABLE rooms                ENABLE ROW LEVEL SECURITY"
+  ],
+  [
+   "migrate",
+   "ALTER TABLE room_members         ENABLE ROW LEVEL SECURITY"
+  ],
+  [
+   "migrate",
+   "CREATE POLICY leaderboard_read_all   ON leaderboard          FOR SELECT USING (true)"
+  ],
+  [
+   "migrate",
+   "CREATE POLICY leaderboard_insert_any ON leaderboard          FOR INSERT WITH CHECK (true)"
+  ],
+  [
+   "migrate",
+   "CREATE POLICY banned_domains_select  ON banned_email_domains FOR SELECT USING (true)"
+  ],
+  [
+   "migrate",
+   "CREATE POLICY account_profile_select ON account_profile FOR SELECT USING (owner_id = auth.uid())"
+  ],
+  [
+   "migrate",
+   "CREATE POLICY account_profile_insert ON account_profile FOR INSERT WITH CHECK (owner_id = auth.uid())"
+  ],
+  [
+   "migrate",
+   "CREATE POLICY account_profile_update ON account_profile FOR UPDATE USING (owner_id = auth.uid())"
+  ],
+  [
+   "migrate",
+   "CREATE POLICY account_devices_select ON account_devices FOR SELECT USING (owner_id = auth.uid())"
+  ],
+  [
+   "migrate",
+   "CREATE POLICY account_devices_insert ON account_devices FOR INSERT WITH CHECK (owner_id = auth.uid())"
+  ],
+  [
+   "migrate",
+   "CREATE POLICY account_devices_update ON account_devices FOR UPDATE USING (owner_id = auth.uid())"
+  ],
+  [
+   "migrate",
+   "CREATE POLICY cheat_flags_select     ON cheat_flags     FOR SELECT USING (owner_id = auth.uid())"
+  ],
+  [
+   "migrate",
+   "GRANT SELECT ON banned_email_domains TO anon"
+  ],
+  [
+   "migrate",
+   "GRANT SELECT ON banned_email_domains TO authenticated"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION submit_record(\n  p_name TEXT, p_hero TEXT, p_wave INT, p_kills INT, p_mats INT, p_survive_sec INT\n) RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE v_uid TEXT := _uid();\nBEGIN\n  IF v_uid IS NULL THEN RETURN json_build_object('ok', false, 'reason', '未登录'); END IF;\n  IF EXISTS (SELECT 1 FROM cheat_flags WHERE owner_id = v_uid AND banned) THEN\n    RETURN json_build_object('ok', false, 'reason', '账号因异常行为被限制上榜');\n  END IF;\n  IF p_name IS NULL OR length(trim(p_name)) = 0 OR length(p_name) > 12 THEN\n    RETURN json_build_object('ok', false, 'reason', '昵称不合法');\n  END IF;\n  IF p_wave < 1 OR p_wave > 20 THEN RETURN json_build_object('ok', false, 'reason', '波次数据异常'); END IF;\n  IF p_kills < 0 OR p_kills > 20000 THEN RETURN json_build_object('ok', false, 'reason', '击杀数据异常'); END IF;\n  IF p_mats < 0 OR p_mats > 200000 THEN RETURN json_build_object('ok', false, 'reason', '材料数据异常'); END IF;\n  IF p_survive_sec < 0 OR p_survive_sec > 3600 THEN RETURN json_build_object('ok', false, 'reason', '时长数据异常'); END IF;\n  IF p_survive_sec > 0 THEN\n    IF p_kills::numeric / p_survive_sec > 25 THEN RETURN json_build_object('ok', false, 'reason', '击杀速率异常'); END IF;\n    IF p_mats::numeric / p_survive_sec > 400 THEN RETURN json_build_object('ok', false, 'reason', '材料速率异常'); END IF;\n  END IF;\n  INSERT INTO leaderboard (player_name, hero, wave, kills, mats, survive_sec, owner_id)\n  VALUES (left(trim(p_name),12), left(coalesce(p_hero,''),12), p_wave, p_kills, p_mats, p_survive_sec, v_uid);\n  RETURN json_build_object('ok', true);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION my_best_record()\nRETURNS TABLE (wave INT, kills INT, mats INT, survive_sec INT, created_at TIMESTAMPTZ)\nLANGUAGE sql SECURITY DEFINER AS $fn$\n  SELECT l.wave, l.kills, l.mats, l.survive_sec, l.created_at\n  FROM leaderboard l\n  WHERE l.owner_id = _uid()\n  ORDER BY l.wave DESC, l.kills DESC\n  LIMIT 1\n$fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION report_cheat(\n  p_reason TEXT, p_detail TEXT, p_wave INT, p_device TEXT DEFAULT NULL\n) RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE\n  v_uid TEXT := _uid(); v_ip TEXT := _client_ip();\n  v_dev TEXT := left(trim(coalesce(p_device,'')), 64);\n  v_cnt INT := 0; v_banned BOOLEAN := false; v_devban BOOLEAN := false;\nBEGIN\n  IF v_dev = '' THEN v_dev := NULL; END IF;\n  IF v_dev IS NOT NULL THEN\n    SELECT true INTO v_devban FROM banned_devices WHERE device_id = v_dev;\n  END IF;\n  IF coalesce(v_devban,false) THEN\n    RETURN json_build_object('ok', true, 'flags', 0, 'banned', true, 'reason', 'device_banned', 'device', v_dev);\n  END IF;\n  IF v_uid IS NULL AND v_dev IS NULL THEN\n    RETURN json_build_object('ok', false, 'reason', '无法识别来源');\n  END IF;\n  IF EXISTS (\n    SELECT 1 FROM cheat_flags\n    WHERE coalesce(owner_id,'') = coalesce(v_uid,'')\n      AND coalesce(device_id,'') = coalesce(v_dev,'')\n      AND reason = left(coalesce(p_reason,'unknown'),60)\n      AND created_at > now() - interval '10 seconds'\n  ) THEN\n    RETURN json_build_object('ok', true, 'duplicate', true, 'banned', false);\n  END IF;\n  INSERT INTO cheat_flags (owner_id, reason, detail, wave, ip, device_id)\n  VALUES (v_uid, left(coalesce(p_reason,'unknown'),60), left(coalesce(p_detail,''),200),\n          greatest(0, coalesce(p_wave,0)), v_ip, v_dev);\n  IF v_uid IS NOT NULL THEN\n    SELECT count(*), coalesce(bool_or(banned), false) INTO v_cnt, v_banned\n    FROM cheat_flags WHERE owner_id = v_uid;\n    IF v_cnt >= 3 THEN\n      UPDATE cheat_flags SET banned = true WHERE owner_id = v_uid;\n      RETURN json_build_object('ok', true, 'flags', v_cnt, 'banned', true);\n    END IF;\n    RETURN json_build_object('ok', true, 'flags', v_cnt, 'banned', coalesce(v_banned,false));\n  ELSE\n    SELECT count(*) INTO v_cnt FROM cheat_flags WHERE owner_id IS NULL AND device_id = v_dev;\n    IF v_cnt >= 3 THEN\n      INSERT INTO banned_devices (device_id, note) VALUES (v_dev, '访客连续异常自动封禁')\n      ON CONFLICT (device_id) DO NOTHING;\n      RETURN json_build_object('ok', true, 'flags', v_cnt, 'banned', true, 'device', v_dev);\n    END IF;\n    RETURN json_build_object('ok', true, 'flags', v_cnt, 'banned', false, 'device', v_dev);\n  END IF;\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION cheat_status(p_device TEXT DEFAULT NULL)\nRETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE\n  v_uid TEXT := _uid(); v_dev TEXT := left(trim(coalesce(p_device,'')), 64);\n  v_cnt INT := 0; v_banned BOOLEAN := false; v_devban BOOLEAN := false;\nBEGIN\n  IF v_dev = '' THEN v_dev := NULL; END IF;\n  IF v_uid IS NOT NULL THEN\n    SELECT count(*), coalesce(bool_or(banned), false) INTO v_cnt, v_banned\n    FROM cheat_flags WHERE owner_id = v_uid;\n  ELSIF v_dev IS NOT NULL THEN\n    SELECT count(*) INTO v_cnt FROM cheat_flags WHERE owner_id IS NULL AND device_id = v_dev;\n  END IF;\n  IF v_dev IS NOT NULL THEN\n    SELECT true INTO v_devban FROM banned_devices WHERE device_id = v_dev;\n  END IF;\n  RETURN json_build_object('ok', true, 'guest', (v_uid IS NULL), 'flags', coalesce(v_cnt,0),\n    'banned', (coalesce(v_banned,false) OR coalesce(v_devban,false)),\n    'device_banned', coalesce(v_devban,false), 'device', v_dev);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION _admin_ok(p_token TEXT) RETURNS TEXT\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE v_user TEXT;\nBEGIN\n  IF p_token IS NULL OR length(p_token) < 10 THEN RETURN NULL; END IF;\n  SELECT username INTO v_user FROM admin_sessions\n  WHERE token = p_token AND expires_at > now();\n  RETURN v_user;\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION admin_login(p_user TEXT, p_pass TEXT)\nRETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE v_hash TEXT; v_tok TEXT; v_fails INT; v_exp TIMESTAMPTZ;\nBEGIN\n  IF coalesce(p_user,'') = '' OR coalesce(p_pass,'') = '' THEN\n    RETURN json_build_object('ok', false, 'reason', '请输入用户名和密码');\n  END IF;\n  SELECT count(*) INTO v_fails FROM admin_fails WHERE created_at > now() - interval '60 seconds';\n  IF v_fails >= 6 THEN\n    RETURN json_build_object('ok', false, 'reason', '尝试过于频繁，请 1 分钟后再试');\n  END IF;\n  SELECT pass_hash INTO v_hash FROM admin_accounts WHERE username = p_user;\n  IF v_hash IS NULL OR v_hash <> encode(digest(p_user || ':' || p_pass, 'sha256'), 'hex') THEN\n    INSERT INTO admin_fails (username) VALUES (left(p_user, 40));\n    RETURN json_build_object('ok', false, 'reason', '用户名或密码错误');\n  END IF;\n  v_tok := encode(gen_random_bytes(24), 'hex');\n  v_exp := now() + interval '2 hours';\n  INSERT INTO admin_sessions (token, username, expires_at) VALUES (v_tok, p_user, v_exp);\n  UPDATE admin_accounts SET last_login = now() WHERE username = p_user;\n  DELETE FROM admin_sessions WHERE expires_at < now() - interval '1 day';\n  RETURN json_build_object('ok', true, 'token', v_tok, 'expires_at', v_exp);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION admin_logout(p_token TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nBEGIN\n  DELETE FROM admin_sessions WHERE token = p_token;\n  RETURN json_build_object('ok', true);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION admin_overview(p_token TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE u TEXT := _admin_ok(p_token);\nBEGIN\n  IF u IS NULL THEN RETURN json_build_object('ok', false, 'reason', '登录已失效'); END IF;\n  RETURN json_build_object('ok', true, 'user', u,\n    'records',  (SELECT count(*) FROM leaderboard),\n    'profiles', (SELECT count(*) FROM account_profile),\n    'devices',  (SELECT count(*) FROM account_devices),\n    'flags',    (SELECT count(*) FROM cheat_flags),\n    'banned',   (SELECT count(DISTINCT owner_id) FROM cheat_flags WHERE banned),\n    'devbans',  (SELECT count(*) FROM banned_devices),\n    'domains',  (SELECT count(*) FROM banned_email_domains),\n    'sessions', (SELECT count(*) FROM admin_sessions WHERE expires_at > now()));\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION admin_records(p_token TEXT, p_limit INT DEFAULT 100) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE u TEXT := _admin_ok(p_token); v JSON;\nBEGIN\n  IF u IS NULL THEN RETURN json_build_object('ok', false, 'reason', '登录已失效'); END IF;\n  SELECT coalesce(json_agg(t), '[]'::json) INTO v FROM (\n    SELECT id, player_name, hero, wave, kills, mats, survive_sec, owner_id, created_at\n    FROM leaderboard ORDER BY created_at DESC\n    LIMIT greatest(1, least(coalesce(p_limit,100), 500))\n  ) t;\n  RETURN json_build_object('ok', true, 'rows', v);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION admin_del_record(p_token TEXT, p_id BIGINT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE u TEXT := _admin_ok(p_token); n INT;\nBEGIN\n  IF u IS NULL THEN RETURN json_build_object('ok', false, 'reason', '登录已失效'); END IF;\n  DELETE FROM leaderboard WHERE id = p_id;\n  GET DIAGNOSTICS n = ROW_COUNT;\n  RETURN json_build_object('ok', true, 'deleted', n);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION admin_flags(p_token TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE u TEXT := _admin_ok(p_token); v JSON;\nBEGIN\n  IF u IS NULL THEN RETURN json_build_object('ok', false, 'reason', '登录已失效'); END IF;\n  SELECT coalesce(json_agg(t), '[]'::json) INTO v FROM (\n    SELECT owner_id, reason, detail, wave, banned, ip, device_id, created_at,\n           (device_id IS NOT NULL AND EXISTS (\n              SELECT 1 FROM banned_devices bd WHERE bd.device_id = cheat_flags.device_id\n           )) AS device_banned\n    FROM cheat_flags ORDER BY created_at DESC LIMIT 300\n  ) t;\n  RETURN json_build_object('ok', true, 'rows', v);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION admin_ban(p_token TEXT, p_owner TEXT, p_banned BOOLEAN) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE u TEXT := _admin_ok(p_token); v_exists INT;\nBEGIN\n  IF u IS NULL THEN RETURN json_build_object('ok', false, 'reason', '登录已失效'); END IF;\n  IF coalesce(p_owner,'') IN ('', 'anon') THEN\n    RETURN json_build_object('ok', false, 'reason', '匿名为公共身份，请改用设备封禁');\n  END IF;\n  SELECT count(*) INTO v_exists FROM cheat_flags WHERE owner_id = p_owner;\n  IF v_exists = 0 THEN\n    INSERT INTO cheat_flags (owner_id, reason, detail, wave, banned)\n    VALUES (p_owner, 'manual',\n            CASE WHEN p_banned THEN '管理员手动封禁' ELSE '管理员手动解封' END, 0, p_banned);\n  ELSE\n    UPDATE cheat_flags SET banned = p_banned WHERE owner_id = p_owner;\n  END IF;\n  RETURN json_build_object('ok', true, 'banned', p_banned);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION admin_ban_device(p_token TEXT, p_device TEXT, p_banned BOOLEAN) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE u TEXT := _admin_ok(p_token); v TEXT := left(trim(coalesce(p_device,'')), 64);\nBEGIN\n  IF u IS NULL THEN RETURN json_build_object('ok', false, 'reason', '登录已失效'); END IF;\n  IF v = '' THEN RETURN json_build_object('ok', false, 'reason', '缺少设备ID'); END IF;\n  IF p_banned THEN\n    INSERT INTO banned_devices (device_id, note) VALUES (v, '管理员手动封禁')\n    ON CONFLICT (device_id) DO NOTHING;\n  ELSE\n    DELETE FROM banned_devices WHERE device_id = v;\n  END IF;\n  RETURN json_build_object('ok', true, 'device', v, 'banned', p_banned);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION admin_banned_devices(p_token TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE u TEXT := _admin_ok(p_token); v JSON;\nBEGIN\n  IF u IS NULL THEN RETURN json_build_object('ok', false, 'reason', '登录已失效'); END IF;\n  SELECT coalesce(json_agg(t), '[]'::json) INTO v FROM (\n    SELECT device_id, note, created_at FROM banned_devices ORDER BY created_at DESC LIMIT 300\n  ) t;\n  RETURN json_build_object('ok', true, 'rows', v);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION admin_domains(p_token TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE u TEXT := _admin_ok(p_token); v JSON;\nBEGIN\n  IF u IS NULL THEN RETURN json_build_object('ok', false, 'reason', '登录已失效'); END IF;\n  SELECT coalesce(json_agg(t), '[]'::json) INTO v FROM (\n    SELECT domain, note FROM banned_email_domains ORDER BY domain\n  ) t;\n  RETURN json_build_object('ok', true, 'rows', v);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION admin_add_domain(p_token TEXT, p_domain TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE u TEXT := _admin_ok(p_token);\n        d TEXT := lower(trim(coalesce(p_domain,'')));\nBEGIN\n  IF u IS NULL THEN RETURN json_build_object('ok', false, 'reason', '登录已失效'); END IF;\n  IF d !~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$' THEN\n    RETURN json_build_object('ok', false, 'reason', '域名格式不正确');\n  END IF;\n  INSERT INTO banned_email_domains (domain, note) VALUES (d, 'manual')\n  ON CONFLICT (domain) DO NOTHING;\n  RETURN json_build_object('ok', true, 'domain', d);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION admin_del_domain(p_token TEXT, p_domain TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE u TEXT := _admin_ok(p_token); n INT;\nBEGIN\n  IF u IS NULL THEN RETURN json_build_object('ok', false, 'reason', '登录已失效'); END IF;\n  DELETE FROM banned_email_domains WHERE domain = lower(trim(coalesce(p_domain,'')));\n  GET DIAGNOSTICS n = ROW_COUNT;\n  RETURN json_build_object('ok', true, 'deleted', n);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION admin_set_pass(p_token TEXT, p_new TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE u TEXT := _admin_ok(p_token);\nBEGIN\n  IF u IS NULL THEN RETURN json_build_object('ok', false, 'reason', '登录已失效'); END IF;\n  IF length(coalesce(p_new,'')) < 4 THEN\n    RETURN json_build_object('ok', false, 'reason', '新密码太短（至少 4 位）');\n  END IF;\n  UPDATE admin_accounts\n  SET pass_hash = encode(digest(username || ':' || p_new, 'sha256'), 'hex')\n  WHERE username = u;\n  DELETE FROM admin_sessions WHERE username = u;\n  RETURN json_build_object('ok', true);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION _room_state(p_code TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE r rooms%ROWTYPE; v JSON;\nBEGIN\n  SELECT * INTO r FROM rooms WHERE code = trim(p_code);\n  IF r.id IS NULL THEN\n    RETURN json_build_object('ok', false, 'reason', '房间不存在（房码 ' || coalesce(p_code,'') || '）');\n  END IF;\n  SELECT coalesce(json_agg(t ORDER BY t.done, t.joined_at), '[]'::json) INTO v FROM (\n    SELECT member_key, name, ready, wave, kills, mats, survive_sec, done, joined_at\n    FROM room_members WHERE room_id = r.id\n  ) t;\n  RETURN json_build_object('ok', true, 'code', r.code, 'host_key', r.host_key,\n    'max', r.max_players, 'status', r.status, 'members', v);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION room_create(p_max INT, p_name TEXT, p_device TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE v_key TEXT; v_name TEXT; v_code TEXT; v_id BIGINT; i INT;\nBEGIN\n  v_key := coalesce(_uid(), nullif(trim(coalesce(p_device,'')),''));\n  IF v_key IS NULL THEN RETURN json_build_object('ok', false, 'reason', '无法识别身份'); END IF;\n  v_name := left(coalesce(nullif(trim(coalesce(p_name,'')),''), '玩家'), 12);\n  IF p_max IS NULL OR p_max < 2 OR p_max > 6 THEN\n    RETURN json_build_object('ok', false, 'reason', '人数需 2~6 人');\n  END IF;\n  DELETE FROM room_members WHERE member_key = v_key\n    AND room_id IN (SELECT id FROM rooms WHERE created_at > now() - interval '3 hours');\n  DELETE FROM rooms WHERE created_at < now() - interval '3 hours'\n    AND NOT EXISTS (SELECT 1 FROM room_members rm WHERE rm.room_id = rooms.id);\n  FOR i IN 1..30 LOOP\n    v_code := lpad((floor(random()*1000000))::int::text, 6, '0');\n    EXIT WHEN NOT EXISTS (SELECT 1 FROM rooms WHERE code = v_code);\n  END LOOP;\n  INSERT INTO rooms (code, host_key, max_players, status, updated_at)\n  VALUES (v_code, v_key, p_max, 'waiting', now()) RETURNING id INTO v_id;\n  INSERT INTO room_members (room_id, member_key, name, ready) VALUES (v_id, v_key, v_name, true);\n  RETURN _room_state(v_code);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION room_join(p_code TEXT, p_name TEXT, p_device TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE v_key TEXT; v_name TEXT; r rooms%ROWTYPE; v_cnt INT;\nBEGIN\n  v_key := coalesce(_uid(), nullif(trim(coalesce(p_device,'')),''));\n  IF v_key IS NULL THEN RETURN json_build_object('ok', false, 'reason', '无法识别身份'); END IF;\n  v_name := left(coalesce(nullif(trim(coalesce(p_name,'')),''), '玩家'), 12);\n  IF coalesce(trim(p_code),'') !~ '^[0-9]{6}$' THEN\n    RETURN json_build_object('ok', false, 'reason', '请输入 6 位数字房码');\n  END IF;\n  SELECT * INTO r FROM rooms WHERE code = trim(p_code);\n  IF r.id IS NULL THEN RETURN json_build_object('ok', false, 'reason', '房间不存在，请确认房码'); END IF;\n  IF r.status = 'playing' THEN RETURN json_build_object('ok', false, 'reason', '该房间已开始游戏'); END IF;\n  SELECT count(*) INTO v_cnt FROM room_members WHERE room_id = r.id;\n  IF NOT EXISTS (SELECT 1 FROM room_members WHERE room_id = r.id AND member_key = v_key)\n     AND v_cnt >= r.max_players THEN\n    RETURN json_build_object('ok', false, 'reason', '房间已满（' || r.max_players || ' 人）');\n  END IF;\n  DELETE FROM room_members WHERE member_key = v_key AND room_id <> r.id\n    AND room_id IN (SELECT id FROM rooms WHERE created_at > now() - interval '3 hours');\n  INSERT INTO room_members (room_id, member_key, name, ready, wave, kills, mats, survive_sec, done)\n  VALUES (r.id, v_key, v_name, false, 0, 0, 0, 0, false)\n  ON CONFLICT (room_id, member_key) DO UPDATE SET name = EXCLUDED.name;\n  UPDATE rooms SET updated_at = now() WHERE id = r.id;\n  RETURN _room_state(r.code);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION room_poll(p_code TEXT, p_device TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE v_key TEXT; r rooms%ROWTYPE;\nBEGIN\n  v_key := coalesce(_uid(), nullif(trim(coalesce(p_device,'')),''));\n  SELECT * INTO r FROM rooms WHERE code = trim(coalesce(p_code,''));\n  IF r.id IS NULL THEN RETURN json_build_object('ok', false, 'reason', '房间已关闭'); END IF;\n  IF NOT EXISTS (SELECT 1 FROM room_members WHERE room_id = r.id AND member_key = v_key) THEN\n    RETURN json_build_object('ok', false, 'reason', '你不在该房间', 'kicked', true);\n  END IF;\n  RETURN _room_state(r.code);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION room_ready(p_code TEXT, p_device TEXT, p_ready BOOLEAN) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE v_key TEXT; r rooms%ROWTYPE;\nBEGIN\n  v_key := coalesce(_uid(), nullif(trim(coalesce(p_device,'')),''));\n  SELECT * INTO r FROM rooms WHERE code = trim(coalesce(p_code,''));\n  IF r.id IS NULL THEN RETURN json_build_object('ok', false, 'reason', '房间不存在'); END IF;\n  IF r.host_key = v_key THEN RETURN _room_state(r.code); END IF;\n  UPDATE room_members SET ready = coalesce(p_ready,false)\n  WHERE room_id = r.id AND member_key = v_key;\n  IF NOT FOUND THEN RETURN json_build_object('ok', false, 'reason', '你不在该房间'); END IF;\n  UPDATE rooms SET updated_at = now() WHERE id = r.id;\n  RETURN _room_state(r.code);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION room_start(p_code TEXT, p_device TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE v_key TEXT; r rooms%ROWTYPE; v_cnt INT; v_notready INT;\nBEGIN\n  v_key := coalesce(_uid(), nullif(trim(coalesce(p_device,'')),''));\n  SELECT * INTO r FROM rooms WHERE code = trim(coalesce(p_code,''));\n  IF r.id IS NULL THEN RETURN json_build_object('ok', false, 'reason', '房间不存在'); END IF;\n  IF r.host_key <> v_key THEN RETURN json_build_object('ok', false, 'reason', '只有房主能开始'); END IF;\n  IF r.status <> 'waiting' THEN RETURN _room_state(r.code); END IF;\n  SELECT count(*), count(*) FILTER (WHERE NOT ready) INTO v_cnt, v_notready\n  FROM room_members WHERE room_id = r.id;\n  IF v_cnt < 2 THEN RETURN json_build_object('ok', false, 'reason', '至少需要 2 人才能开始'); END IF;\n  IF v_notready > 0 THEN\n    RETURN json_build_object('ok', false, 'reason', '还有 ' || v_notready || ' 人未准备');\n  END IF;\n  UPDATE room_members SET wave = 0, kills = 0, mats = 0, survive_sec = 0, done = false\n  WHERE room_id = r.id;\n  UPDATE rooms SET status = 'playing', updated_at = now() WHERE id = r.id;\n  RETURN _room_state(r.code);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION room_submit(\n  p_code TEXT, p_device TEXT, p_wave INT, p_kills INT, p_mats INT, p_time INT\n) RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE v_key TEXT; r rooms%ROWTYPE;\nBEGIN\n  v_key := coalesce(_uid(), nullif(trim(coalesce(p_device,'')),''));\n  SELECT * INTO r FROM rooms WHERE code = trim(coalesce(p_code,''));\n  IF r.id IS NULL THEN RETURN json_build_object('ok', false, 'reason', '房间不存在'); END IF;\n  UPDATE room_members SET\n    wave = greatest(0, least(20, coalesce(p_wave,0))),\n    kills = greatest(0, coalesce(p_kills,0)),\n    mats = greatest(0, coalesce(p_mats,0)),\n    survive_sec = greatest(0, coalesce(p_time,0)),\n    done = true\n  WHERE room_id = r.id AND member_key = v_key;\n  IF NOT FOUND THEN RETURN json_build_object('ok', false, 'reason', '你不在该房间'); END IF;\n  RETURN _room_state(r.code);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION room_leave(p_code TEXT, p_device TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE v_key TEXT; r rooms%ROWTYPE; v_next TEXT;\nBEGIN\n  v_key := coalesce(_uid(), nullif(trim(coalesce(p_device,'')),''));\n  SELECT * INTO r FROM rooms WHERE code = trim(coalesce(p_code,''));\n  IF r.id IS NULL THEN RETURN json_build_object('ok', true); END IF;\n  DELETE FROM room_members WHERE room_id = r.id AND member_key = v_key;\n  SELECT member_key INTO v_next FROM room_members\n  WHERE room_id = r.id ORDER BY joined_at LIMIT 1;\n  IF v_next IS NULL THEN\n    DELETE FROM rooms WHERE id = r.id;\n    RETURN json_build_object('ok', true, 'closed', true);\n  ELSIF r.host_key = v_key THEN\n    UPDATE rooms SET host_key = v_next, updated_at = now() WHERE id = r.id;\n    RETURN json_build_object('ok', true, 'new_host', true);\n  END IF;\n  UPDATE rooms SET updated_at = now() WHERE id = r.id;\n  RETURN json_build_object('ok', true);\nEND $fn$;"
+  ],
+  [
+   "migrate",
+   "CREATE OR REPLACE FUNCTION room_reset(p_code TEXT, p_device TEXT) RETURNS JSON\nLANGUAGE plpgsql SECURITY DEFINER AS $fn$\nDECLARE v_key TEXT; r rooms%ROWTYPE;\nBEGIN\n  v_key := coalesce(_uid(), nullif(trim(coalesce(p_device,'')),''));\n  SELECT * INTO r FROM rooms WHERE code = trim(coalesce(p_code,''));\n  IF r.id IS NULL THEN RETURN json_build_object('ok', false, 'reason', '房间不存在'); END IF;\n  IF r.host_key <> v_key THEN RETURN json_build_object('ok', false, 'reason', '只有房主能重开'); END IF;\n  UPDATE room_members SET wave = 0, kills = 0, mats = 0, survive_sec = 0, done = false,\n    ready = (member_key = r.host_key) WHERE room_id = r.id;\n  UPDATE rooms SET status = 'waiting', updated_at = now() WHERE id = r.id;\n  RETURN _room_state(r.code);\nEND $fn$;"
+  ],
+  [
+   "write",
+   "INSERT INTO banned_email_domains (domain, note) VALUES\n  ('mailinator.com','temp-mail'), ('10minutemail.com','temp-mail'),\n  ('guerrillamail.com','temp-mail'), ('tempmail.com','temp-mail'),\n  ('temp-mail.org','temp-mail'), ('trashmail.com','temp-mail'),\n  ('yopmail.com','temp-mail'), ('getnada.com','temp-mail'),\n  ('sharklasers.com','temp-mail'), ('mailsac.com','temp-mail'),\n  ('maildrop.cc','temp-mail'), ('33mail.com','temp-mail')\nON CONFLICT (domain) DO NOTHING"
+  ],
+  [
+   "migrate",
+   "ALTER TABLE account_profile ALTER COLUMN owner_id SET DEFAULT auth.uid()"
+  ],
+  [
+   "migrate",
+   "ALTER TABLE account_devices ALTER COLUMN owner_id SET DEFAULT auth.uid()"
+  ],
+  [
+   "migrate",
+   "GRANT SELECT ON TABLE leaderboard TO authenticated, anon"
+  ],
+  [
+   "migrate",
+   "GRANT SELECT, INSERT, UPDATE ON TABLE account_profile TO authenticated, anon"
+  ],
+  [
+   "migrate",
+   "GRANT SELECT, INSERT, UPDATE ON TABLE account_devices TO authenticated, anon"
+  ],
+  [
+   "migrate",
+   "GRANT SELECT ON TABLE banned_email_domains TO authenticated, anon"
+  ],
+  [
+   "migrate",
+   "GRANT USAGE, SELECT ON SEQUENCE leaderboard_id_seq TO authenticated, anon"
+  ],
+  [
+   "write",
+   "INSERT INTO admin_accounts (username, pass_hash) VALUES ('000000000', '6b5e2106763c9a93526c3ce789bab6ee25581718c126cc420e0897381e2758c0') ON CONFLICT (username) DO NOTHING"
+  ]
+ ]
+}

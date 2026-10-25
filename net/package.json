@@ -1,0 +1,13 @@
+{
+  "name": "azi-net",
+  "version": "1.0.0",
+  "private": true,
+  "description": "阿紫幸存者实时联机中继服务器（host-authoritative relay）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
+  }
+}

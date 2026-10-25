@@ -1,0 +1,20 @@
+[Unit]
+Description=azi-net WebSocket relay (Azizi Survivor)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/azi-net
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+Environment=PORT=9090
+# 安全加固
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/ubuntu/azi-net
+
+[Install]
+WantedBy=multi-user.target

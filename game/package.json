@@ -1,0 +1,16 @@
+{
+  "name": "azi-survivor",
+  "version": "1.13.0",
+  "private": true,
+  "description": "阿紫幸存者 - 类土豆兄弟 2D 割草生存游戏",
+  "scripts": {
+    "build": "node build/build-obfuscated.js 1.13.0",
+    "test:smoke": "node tests/smoke.js",
+    "test:mp": "node tests/mp-flow.js",
+    "test:cheat": "node tests/anti-cheat.js"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^4.1.0",
+    "playwright-core": "^1.40.0"
+  }
+}
